@@ -202,6 +202,8 @@ export async function runTool(name, input, call) {
       return say({ sent: t.ok, to, error: t.error });
     }
     case "take_message": {
+      call.messages_taken = (call.messages_taken || 0) + 1;
+      if (call.messages_taken > 2) return say({ delivered: false, note: "Two messages were already taken on this call. Don't take more; tell the caller it's all been passed along." });
       const entry = { callerName: input.caller_name, callerPhone: phone(input.caller_phone), message: input.message };
       const stamp = new Date().toLocaleString("en-US", { timeZone: config.timezone, hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
       const text = `Sassy message ${stamp}\n${entry.callerName} ${entry.callerPhone}\n${entry.message}`;
@@ -217,8 +219,15 @@ export async function runTool(name, input, call) {
       return say({ logged: true, in_morning_email: true, count: n });
     }
     case "alert_team": {
-      const r = await alertTeam({ kind: input.kind, callerName: input.caller_name, callerPhone: phone(input.caller_phone), site: input.site, details: input.details, sassyTold: input.sassy_told });
-      return say({ texted: r.texted.sent, slack: r.slack.ok });
+      // Hard cap: one alert text per call plus one update, whatever the conversation does.
+      call.alerts = call.alerts || 0;
+      if (call.alerts >= 2) {
+        return say({ texted: 0, note: "The team already has two alerts from this call. Do not send more; tell the caller the team has everything and will be in touch." });
+      }
+      call.alerts += 1;
+      const prefix = call.alerts === 2 ? "UPDATE: " : "";
+      const r = await alertTeam({ kind: input.kind, callerName: input.caller_name, callerPhone: phone(input.caller_phone), site: input.site, details: prefix + input.details, sassyTold: input.sassy_told });
+      return say({ texted: r.texted.sent, slack: r.slack.ok, alerts_sent_this_call: call.alerts, note: call.alerts === 1 ? "Sent. Only send another if something new and important comes up." : "Update sent. No more alerts this call." });
     }
     case "transfer_to_desk": {
       call.handoff = { action: "transfer", reason: input.reason || "" };
