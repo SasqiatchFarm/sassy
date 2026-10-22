@@ -10,7 +10,7 @@ import twilio from "twilio";
 import { config, missingSettings } from "./config.js";
 import { isOfficeHours } from "./hours.js";
 import { CallBrain } from "./brain.js";
-import { WELCOME_GREETING } from "./prompt.js";
+import { greetingFor } from "./prompt.js";
 import { booking } from "./booking.js";
 import { scheduleDigest, sendDigest, pendingIssues } from "./digest.js";
 
@@ -31,12 +31,12 @@ function twilioOnly(req, res, next) {
   next();
 }
 
-function sassyTwiml() {
+function sassyTwiml(officeHours = isOfficeHours()) {
   const vr = new VoiceResponse();
   const connect = vr.connect({ action: `https://${config.publicHost}/voice/relay-done` });
   const attrs = {
     url: `wss://${config.publicHost}/ws`,
-    welcomeGreeting: WELCOME_GREETING,
+    welcomeGreeting: greetingFor(officeHours && !config.alwaysAnswer),
     ttsProvider: config.voice.provider,
     language: config.voice.language,
     transcriptionProvider: "Deepgram",

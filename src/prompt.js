@@ -101,4 +101,9 @@ When the caller is done, use the closing line, then call end_call. If they go qu
 }
 
 export const WELCOME_GREETING = "Thanks for calling Sasquatch Farm, this is Sassy! How can I help you today?";
+export function greetingFor(officeHours) {
+  return officeHours
+    ? "Thanks for calling Sasquatch Farm, this is Sassy. Sorry, everyone stepped out of the store for a minute, but they'll be right back. I can take a reservation, answer questions, or take a message. What can I do for you?"
+    : "Thanks for calling Sasquatch Farm, this is Sassy! The office is closed for the night, but I can take a reservation, answer questions about the park, or take a message. Just talk to me like you'd talk to anyone. What can I do for you?";
+}
 export const BOOKING_LINK = config.booking.bookingLink;
