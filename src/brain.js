@@ -48,7 +48,7 @@ export class CallBrain {
         const stream = client.messages.stream(
           {
             model: config.model,
-            max_tokens: 600,
+            max_tokens: 900,
             system: this.system,
             messages: this.messages,
             tools: toolDefinitions,
