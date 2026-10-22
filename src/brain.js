@@ -25,17 +25,47 @@ export class CallBrain {
   // Called when the caller starts talking over Sassy.
   interrupt(spokenSoFar) {
     if (this.abort) this.abort.abort();
-    // Keep what was actually heard so the conversation stays honest.
-    const last = this.messages[this.messages.length - 1];
-    if (last && last.role === "assistant" && typeof last.content === "string" && spokenSoFar) {
-      last.content = spokenSoFar + " [caller interrupted]";
+    this.interruptedAt = spokenSoFar || "";
+  }
+
+  // The API needs user and assistant turns to alternate. Make sure the record is well formed
+  // before every request, whatever interruptions did to it.
+  tidy() {
+    const out = [];
+    for (const m of this.messages) {
+      const prev = out[out.length - 1];
+      if (prev && prev.role === m.role) {
+        // Two turns in a row from the same side: merge them into one.
+        const a = Array.isArray(prev.content) ? prev.content : [{ type: "text", text: String(prev.content) }];
+        const b = Array.isArray(m.content) ? m.content : [{ type: "text", text: String(m.content) }];
+        prev.content = a.concat(b);
+      } else {
+        out.push({ role: m.role, content: m.content });
+      }
     }
+    if (out.length && out[0].role !== "user") out.shift();
+    this.messages = out;
   }
 
   // userText -> streams reply chunks via onToken(text, isLast). Resolves when the turn is done.
   async respond(userText, onToken) {
+    // If a reply is still being produced, stop it first; the caller has moved on.
+    if (this.busy) {
+      this.interrupt(this.interruptedAt);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    this.busy = true;
+    try {
+      return await this._respond(userText, onToken);
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  async _respond(userText, onToken) {
     this.transcript.push({ who: "caller", text: userText });
     this.messages.push({ role: "user", content: userText });
+    this.tidy();
 
     for (let round = 0; round < 6; round++) {
       this.abort = new AbortController();
@@ -67,7 +97,9 @@ export class CallBrain {
         toolUses = final.content.filter((b) => b.type === "tool_use");
       } catch (err) {
         if (err?.name === "AbortError" || this.abort.signal.aborted) {
-          if (spoken) this.messages.push({ role: "assistant", content: spoken });
+          const heard = (this.interruptedAt || spoken || "").trim();
+          if (heard) this.messages.push({ role: "assistant", content: heard + " [caller interrupted]" });
+          this.interruptedAt = "";
           return { interrupted: true };
         }
         console.error("claude error", err?.message || err);
@@ -78,14 +110,19 @@ export class CallBrain {
 
       if (spoken.trim()) this.transcript.push({ who: "sassy", text: spoken.trim() });
 
+      // Keep only what matters for the record: spoken text and tool calls. Thinking blocks are
+      // tied to the exact conversation they came from and break the next request once an
+      // interruption has edited the history, so they are never stored.
+      const kept = assistantBlocks.filter((b) => b.type === "text" || b.type === "tool_use");
+
       if (stopReason !== "tool_use" || toolUses.length === 0) {
-        this.messages.push({ role: "assistant", content: assistantBlocks.length ? assistantBlocks : spoken });
+        this.messages.push({ role: "assistant", content: kept.length ? kept : spoken || "..." });
         onToken("", true);
         return { done: true };
       }
 
       // Claude wants to use tools. Keep the assistant turn (text + tool_use blocks), run them, feed results back.
-      this.messages.push({ role: "assistant", content: assistantBlocks });
+      this.messages.push({ role: "assistant", content: kept });
       const results = [];
       for (const tu of toolUses) {
         let out;
