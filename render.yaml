@@ -1,0 +1,60 @@
+# One-click deploy for Render. Julie fills in the blank settings on the screen Render shows.
+services:
+  - type: web
+    name: sassy
+    runtime: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    disk:
+      name: sassy-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATA_DIR
+        value: /data
+      - key: PUBLIC_HOST
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        value: "+14235152184"
+      - key: FRONT_DESK_SIP
+        value: "sip:frontdesk@sasquatchfarm.sip.us1.twilio.com"
+      - key: DESK_RING_SECONDS
+        value: "25"
+      - key: TTS_PROVIDER
+        value: ElevenLabs
+      - key: TTS_VOICE
+        sync: false
+      - key: TEAM_CELLS
+        sync: false
+      - key: JULIE_CELL
+        sync: false
+      - key: SLACK_WEBHOOK_URL
+        sync: false
+      - key: FARM_EMAIL
+        value: stay@sasquatchfarmtn.com
+      - key: DIGEST_EMAILS
+        sync: false
+      - key: DIGEST_TIME
+        value: "08:30"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: BOOKING_API_URL
+        value: https://book.sasquatchfarm.com/sassy.php?do=
+      - key: BOOKING_API_KEY
+        sync: false
+      - key: SASSY_ALWAYS_ANSWER
+        value: "1"
+      - key: ADMIN_KEY
+        generateValue: true
