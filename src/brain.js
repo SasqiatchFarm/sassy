@@ -52,7 +52,6 @@ export class CallBrain {
             system: this.system,
             messages: this.messages,
             tools: toolDefinitions,
-            temperature: 0.6,
           },
           { signal: this.abort.signal },
         );
