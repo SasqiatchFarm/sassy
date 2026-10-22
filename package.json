@@ -1,0 +1,21 @@
+{
+  "name": "sassy-receptionist",
+  "version": "0.1.0",
+  "description": "Sassy, the after-hours phone receptionist for Sasquatch Farm",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/brain.js && node --check src/tools.js && node --check src/alerts.js && node --check src/booking.js && node --check src/hours.js && node --check src/prompt.js && node --check src/digest.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "express": "^4.21.0",
+    "node-cron": "^3.0.3",
+    "nodemailer": "^6.9.16",
+    "twilio": "^5.3.0",
+    "ws": "^8.18.0"
+  }
+}
