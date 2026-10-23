@@ -12,11 +12,11 @@ function tw() {
   return twilioClient;
 }
 
-export async function sendText(to, body) {
+export async function sendText(to, body, from = config.twilio.fromNumber) {
   const client = tw();
-  if (!client || !config.twilio.fromNumber) return { ok: false, error: "texting not set up" };
+  if (!client || !from) return { ok: false, error: "texting not set up" };
   try {
-    const msg = await client.messages.create({ to, from: config.twilio.fromNumber, body });
+    const msg = await client.messages.create({ to, from, body });
     return { ok: true, sid: msg.sid };
   } catch (err) {
     console.error("text failed", to, err.message);
@@ -57,11 +57,11 @@ function mail() {
   return mailer;
 }
 
-export async function sendEmail(to, subject, text) {
+export async function sendEmail(to, subject, text, senderName = "Sassy at Sasquatch Farm") {
   const m = mail();
   if (!m) return { ok: false, error: "email not set up" };
   try {
-    await m.sendMail({ from: `"Sassy at Sasquatch Farm" <${config.smtp.user}>`, to, subject, text });
+    await m.sendMail({ from: `"${senderName}" <${config.smtp.user}>`, to, subject, text });
     return { ok: true };
   } catch (err) {
     console.error("email failed", err.message);

@@ -47,6 +47,17 @@ export const config = {
     massageLink: env("MASSAGE_LINK", "https://mountainmobilemassage.com"),
   },
 
+  // USA Event Carpet line (Max). Same server, second personality, picked by the number dialed.
+  carpet: {
+    number: env("CARPET_NUMBER", "+12252386303"),
+    fromNumber: env("CARPET_FROM_NUMBER", "+12252386303"), // texts to Julie go out from this number
+    voiceId: env("CARPET_TTS_VOICE", ""), // a male ElevenLabs voice
+    transferCells: list("CARPET_TRANSFER_CELLS"), // Julie, Greg
+    email: env("CARPET_EMAIL", "info@usaeventcarpet.com"),
+    website: env("CARPET_WEBSITE", "https://www.usaeventcarpet.com"),
+    timezone: "America/New_York",
+  },
+
   // Testing switches
   alwaysAnswer: env("SASSY_ALWAYS_ANSWER", "0") === "1", // 1 = Sassy picks up every call (test number)
   timezone: "America/Chicago",

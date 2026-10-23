@@ -9,8 +9,10 @@ import http from "node:http";
 import twilio from "twilio";
 import { config, missingSettings } from "./config.js";
 import { isOfficeHours } from "./hours.js";
-import { CallBrain } from "./brain.js";
+import { CallBrain, FARM_LINE } from "./brain.js";
 import { greetingFor } from "./prompt.js";
+import { buildCarpetPrompt, carpetGreeting, carpetOpen } from "./carpet-prompt.js";
+import { carpetTools, runCarpetTool } from "./carpet-tools.js";
 import { booking } from "./booking.js";
 import { scheduleDigest, sendDigest, pendingIssues } from "./digest.js";
 
@@ -31,12 +33,19 @@ function twilioOnly(req, res, next) {
   next();
 }
 
-function sassyTwiml(officeHours = isOfficeHours()) {
+// Which personality answers: the Event Carpet number gets Max, everything else gets Sassy.
+const CARPET_LINE = { name: "Max", buildPrompt: buildCarpetPrompt, tools: carpetTools, runTool: runCarpetTool };
+const isCarpetNumber = (to) => !!config.carpet.number && String(to || "").replace(/\D/g, "").endsWith(config.carpet.number.replace(/\D/g, ""));
+
+// Connect the caller to the live speech link. `flags` ride along in the WebSocket URL so the
+// brain knows which line it is and whether a transfer just failed.
+function relayTwiml({ greeting, voiceId, flags = {} }) {
   const vr = new VoiceResponse();
   const connect = vr.connect({ action: `https://${config.publicHost}/voice/relay-done` });
+  const qs = new URLSearchParams(flags).toString();
   const attrs = {
-    url: `wss://${config.publicHost}/ws`,
-    welcomeGreeting: greetingFor(officeHours && !config.alwaysAnswer),
+    url: `wss://${config.publicHost}/ws${qs ? "?" + qs : ""}`,
+    welcomeGreeting: greeting,
     ttsProvider: config.voice.provider,
     language: config.voice.language,
     transcriptionProvider: "Deepgram",
@@ -44,9 +53,21 @@ function sassyTwiml(officeHours = isOfficeHours()) {
     interruptible: "any",
     dtmfDetection: "true",
   };
-  if (config.voice.voiceId) attrs.voice = config.voice.voiceId;
+  if (voiceId) attrs.voice = voiceId;
   connect.conversationRelay(attrs);
   return vr.toString();
+}
+
+function sassyTwiml(officeHours = isOfficeHours()) {
+  return relayTwiml({ greeting: greetingFor(officeHours && !config.alwaysAnswer), voiceId: config.voice.voiceId });
+}
+
+function maxTwiml(transferFailed = false) {
+  return relayTwiml({
+    greeting: carpetGreeting(carpetOpen(), transferFailed),
+    voiceId: config.carpet.voiceId || config.voice.voiceId,
+    flags: { line: "carpet", ...(transferFailed ? { transferFailed: "1" } : {}) },
+  });
 }
 
 function deskTwiml() {
@@ -62,9 +83,13 @@ function deskTwiml() {
 
 // 1. A call comes in.
 app.post("/voice/incoming", twilioOnly, (req, res) => {
+  res.type("text/xml");
+  if (isCarpetNumber(req.body.To)) {
+    console.log(`carpet call ${req.body.CallSid} from ${req.body.From}; office ${carpetOpen() ? "open" : "closed"}`);
+    return res.send(maxTwiml());
+  }
   const office = isOfficeHours();
   console.log(`call ${req.body.CallSid} from ${req.body.From}; office ${office ? "open" : "closed"}; always=${config.alwaysAnswer}`);
-  res.type("text/xml");
   if (config.alwaysAnswer || !office) return res.send(sassyTwiml());
   return res.send(deskTwiml());
 });
@@ -85,13 +110,44 @@ app.post("/voice/relay-done", twilioOnly, (req, res) => {
   let handoff = {};
   try { handoff = JSON.parse(req.body.HandoffData || "{}"); } catch {}
   const vr = new VoiceResponse();
-  if (handoff.action === "transfer") {
+  if (handoff.action === "transfer" && isCarpetNumber(req.body.To)) {
+    // Max: ring the team's cells. Whoever presses 1 first gets the call; voicemail can't grab it.
+    const cells = config.carpet.transferCells;
+    const pick = handoff.who === "greg" ? cells.slice(1, 2) : handoff.who === "julie" ? cells.slice(0, 1) : cells;
+    const dial = vr.dial({ timeout: 25, action: `https://${config.publicHost}/voice/carpet-transfer-done`, callerId: config.carpet.number });
+    const whisper = `https://${config.publicHost}/voice/whisper?${new URLSearchParams({ reason: handoff.reason || "" })}`;
+    for (const n of (pick.length ? pick : cells)) dial.number({ url: whisper }, n);
+  } else if (handoff.action === "transfer") {
     const dial = vr.dial({ timeout: config.twilio.deskRingSeconds, action: `https://${config.publicHost}/voice/transfer-done` });
     dial.sip(config.twilio.deskSip);
   } else {
     vr.hangup();
   }
   res.type("text/xml").send(vr.toString());
+});
+
+// Played to Julie or Greg before the caller is connected. Pressing 1 accepts; anything else
+// (including a cell's voicemail) lets the leg drop so Max can take a message instead.
+app.post("/voice/whisper", twilioOnly, (req, res) => {
+  const vr = new VoiceResponse();
+  const g = vr.gather({ numDigits: 1, timeout: 6, action: `https://${config.publicHost}/voice/whisper-accept` });
+  g.say(`Event Carpet call from Max. ${req.query.reason || ""} Press 1 to accept.`);
+  vr.hangup();
+  res.type("text/xml").send(vr.toString());
+});
+app.post("/voice/whisper-accept", twilioOnly, (req, res) => {
+  const vr = new VoiceResponse();
+  if (req.body.Digits !== "1") vr.hangup();
+  res.type("text/xml").send(vr.toString()); // empty = connect the call
+});
+
+// Nobody took Max's transfer: go back to Max, who takes a message.
+app.post("/voice/carpet-transfer-done", twilioOnly, (req, res) => {
+  res.type("text/xml");
+  const status = req.body.DialCallStatus;
+  if (status === "completed" || status === "answered") return res.send(new VoiceResponse().toString());
+  console.log(`carpet transfer ${status}; Max taking a message on ${req.body.CallSid}`);
+  return res.send(maxTwiml(true));
 });
 
 app.post("/voice/transfer-done", twilioOnly, (req, res) => {
@@ -115,9 +171,11 @@ app.post("/admin/send-digest", (req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, req) => {
   let brain = null;
   let speaking = false;
+  const flags = new URL(req.url, "http://x").searchParams;
+  const carpet = flags.get("line") === "carpet";
 
   const sendToken = (token, last) => {
     if (ws.readyState !== ws.OPEN) return;
@@ -127,6 +185,7 @@ wss.on("connection", (ws) => {
   const finishCall = async () => {
     if (!brain) return;
     const summary = brain.summary || "Call ended by caller.";
+    if (brain.line !== FARM_LINE) return; // only farm calls go to the booking site's call log
     booking.callSummary({
       call_sid: brain.callSid,
       from: brain.from,
@@ -142,8 +201,10 @@ wss.on("connection", (ws) => {
 
     switch (msg.type) {
       case "setup": {
-        brain = new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: isOfficeHours() });
-        console.log(`[${msg.callSid}] Sassy on the line with ${msg.from}`);
+        brain = carpet
+          ? new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: carpetOpen(), line: CARPET_LINE, promptExtra: { transferFailed: flags.get("transferFailed") === "1" } })
+          : new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: isOfficeHours() });
+        console.log(`[${msg.callSid}] ${brain.line.name} on the line with ${msg.from}`);
         break;
       }
       case "prompt": {

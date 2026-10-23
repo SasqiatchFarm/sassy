@@ -7,15 +7,20 @@ import { toolDefinitions, runTool } from "./tools.js";
 
 const client = new Anthropic({ apiKey: config.anthropicApiKey });
 
+// A "line" is one personality: Sassy on the farm numbers, Max on the Event Carpet number.
+// { name, buildPrompt({officeHours, from, ...extra}), tools, runTool }
+export const FARM_LINE = { name: "Sassy", buildPrompt: buildSystemPrompt, tools: toolDefinitions, runTool };
+
 export class CallBrain {
-  constructor({ callSid, from, to, officeHours }) {
+  constructor({ callSid, from, to, officeHours, line = FARM_LINE, promptExtra = {} }) {
     this.callSid = callSid;
     this.from = from;
     this.to = to;
     this.officeHours = officeHours;
+    this.line = line;
     this.messages = [];
     this.transcript = [];
-    this.system = buildSystemPrompt({ officeHours, from });
+    this.system = line.buildPrompt({ officeHours, from, ...promptExtra });
     this.handoff = null;
     this.summary = null;
     this.heldSite = null;
@@ -79,9 +84,11 @@ export class CallBrain {
           {
             model: config.model,
             max_tokens: 900,
+            // The instructions and tool list are identical on every turn of every call, so they are
+            // cached on Anthropic's side; each reply then starts faster and costs less.
             system: this.system,
             messages: this.messages,
-            tools: toolDefinitions,
+            tools: this.line.tools,
           },
           { signal: this.abort.signal },
         );
@@ -127,7 +134,7 @@ export class CallBrain {
       for (const tu of toolUses) {
         let out;
         try {
-          out = await runTool(tu.name, tu.input || {}, this);
+          out = await this.line.runTool(tu.name, tu.input || {}, this);
         } catch (err) {
           console.error("tool failed", tu.name, err);
           out = JSON.stringify({ error: "that didn't work; tell the caller you'll have someone follow up" });
@@ -148,6 +155,6 @@ export class CallBrain {
   }
 
   transcriptText() {
-    return this.transcript.map((t) => `${t.who === "sassy" ? "Sassy" : "Caller"}: ${t.text}`).join("\n");
+    return this.transcript.map((t) => `${t.who === "sassy" ? this.line.name : "Caller"}: ${t.text}`).join("\n");
   }
 }

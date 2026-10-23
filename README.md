@@ -33,3 +33,12 @@ Phone numbers are always typed as +1 followed by the 10 digits, no spaces or das
 ## Checking it's alive
 Open `https://<PUBLIC_HOST>/health` in a browser. It shows office-hours status and any settings
 still missing.
+
+## Max (USA Event Carpet line)
+
+The same server answers 225-238-6303 as "Max": a simple message-taker for USA Event Carpet.
+He knows the product lines from the website, never quotes prices, collects name / number /
+event date / event location / what they need, and texts Julie + emails info@usaeventcarpet.com.
+Monday-Friday 9-5 Eastern he can transfer to the cells in CARPET_TRANSFER_CELLS (Julie first,
+then Greg); the person who picks up presses 1 to accept, so voicemail can't swallow the call.
+Settings: CARPET_NUMBER, CARPET_TTS_VOICE (a male ElevenLabs voice), CARPET_TRANSFER_CELLS, CARPET_EMAIL.

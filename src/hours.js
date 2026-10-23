@@ -55,3 +55,24 @@ export function nextOpening(date = new Date()) {
   }
   return "tomorrow morning";
 }
+
+// --- Generic hours for other lines (Max on the Event Carpet number) ---
+export function localNow(timeZone, date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone, weekday: "short", hour: "numeric", minute: "numeric", hour12: false, year: "numeric", month: "short", day: "numeric",
+  }).formatToParts(date);
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  const dayIndex = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(get("weekday"));
+  const hour = Number(get("hour")) % 24;
+  const minute = Number(get("minute"));
+  return { dayIndex, hour, minute, label: `${get("weekday")} ${get("month")} ${get("day")}, ${get("hour")}:${String(minute).padStart(2, "0")}` };
+}
+
+// table: { dayIndex: [open, close] }, days missing = closed
+export function withinHours(table, timeZone, date = new Date()) {
+  const { dayIndex, hour, minute } = localNow(timeZone, date);
+  const span = table[dayIndex];
+  if (!span) return false;
+  const t = hour + minute / 60;
+  return t >= span[0] && t < span[1];
+}

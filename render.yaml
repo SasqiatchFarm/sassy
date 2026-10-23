@@ -55,6 +55,15 @@ services:
       - key: BOOKING_API_KEY
         sync: false
       - key: SASSY_ALWAYS_ANSWER
-        value: "1"
+        value: "0"
+      # USA Event Carpet line (Max)
+      - key: CARPET_NUMBER
+        value: "+12252386303"
+      - key: CARPET_TTS_VOICE
+        sync: false
+      - key: CARPET_TRANSFER_CELLS
+        sync: false
+      - key: CARPET_EMAIL
+        value: info@usaeventcarpet.com
       - key: ADMIN_KEY
         generateValue: true
