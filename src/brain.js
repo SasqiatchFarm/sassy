@@ -134,7 +134,9 @@ export class CallBrain {
       for (const tu of toolUses) {
         let out;
         try {
-          out = await this.line.runTool(tu.name, tu.input || {}, this);
+          out = this.handoff
+            ? JSON.stringify({ skipped: true, note: "The call is already being handed off; nothing more to do." })
+            : await this.line.runTool(tu.name, tu.input || {}, this);
         } catch (err) {
           console.error("tool failed", tu.name, err);
           out = JSON.stringify({ error: "that didn't work; tell the caller you'll have someone follow up" });

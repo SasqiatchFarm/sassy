@@ -234,6 +234,7 @@ export async function runTool(name, input, call) {
       return say({ transferring: true, say_first: "Sure, one moment while I connect you to the front desk." });
     }
     case "end_call": {
+      if (call.handoff?.action === "transfer") return say({ ending: false, note: "A transfer is already in progress. Do nothing else; do not say goodbye." });
       call.handoff = { action: "hangup", summary: input.summary };
       call.summary = input.summary;
       return say({ ending: true });

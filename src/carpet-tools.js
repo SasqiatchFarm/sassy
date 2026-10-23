@@ -10,23 +10,28 @@ export const carpetTools = [
     input_schema: {
       type: "object",
       properties: {
+        business: { type: "string", enum: ["carpet", "cci"], description: "Which sister company the call is for: USA Event Carpet or CCI Events" },
         caller_name: { type: "string" },
         caller_phone: { type: "string", description: "Default the caller's number" },
-        company: { type: "string", description: "If they mentioned one" },
+        company: { type: "string", description: "The caller's own company, if they mentioned one" },
         event_date: { type: "string", description: "When the event is, as they said it" },
         event_location: { type: "string", description: "City and venue, as they said it" },
         need: { type: "string", description: "What they need: product, size/area, anything else, in a sentence or two" },
         rush: { type: "boolean", description: "True if they need it this week or said urgent/right away" },
       },
-      required: ["caller_name", "need"],
+      required: ["business", "caller_name", "need"],
     },
   },
   {
     name: "send_link",
-    description: "Text the caller the USA Event Carpet website link for colors and photos.",
+    description: "Text the caller a website link: USA Event Carpet (colors, products) or CCI Events (past work, services).",
     input_schema: {
       type: "object",
-      properties: { phone: { type: "string", description: "Default the caller's number" } },
+      properties: {
+        which: { type: "string", enum: ["carpet", "cci"] },
+        phone: { type: "string", description: "Default the caller's number" },
+      },
+      required: ["which"],
     },
   },
   {
@@ -57,8 +62,9 @@ export async function runCarpetTool(name, input, call) {
       call.messages_taken = (call.messages_taken || 0) + 1;
       if (call.messages_taken > 2) return say({ delivered: false, note: "Already passed along twice on this call. Don't send more; tell the caller it's all been noted." });
       const stamp = new Date().toLocaleString("en-US", { timeZone: config.carpet.timezone, hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
+      const cci = input.business === "cci";
       const lines = [
-        `${input.rush ? "RUSH - " : ""}Event Carpet message ${stamp}`,
+        `${input.rush ? "RUSH - " : ""}${cci ? "CCI Events" : "Event Carpet"} message ${stamp}`,
         `${input.caller_name}${input.company ? ` (${input.company})` : ""} ${phone(input.caller_phone)}`,
         input.event_date ? `When: ${input.event_date}` : null,
         input.event_location ? `Where: ${input.event_location}` : null,
@@ -67,14 +73,17 @@ export async function runCarpetTool(name, input, call) {
       const text = lines.join("\n");
       const results = await Promise.all([
         config.julieCell ? sendText(config.julieCell, text, config.carpet.fromNumber) : { ok: false },
-        sendEmail(config.carpet.email, `${input.rush ? "RUSH: " : ""}Phone message from ${input.caller_name}`, text + "\n\n- Max", "Max at USA Event Carpet"),
+        sendEmail(cci ? config.carpet.cciEmail : config.carpet.email, `${input.rush ? "RUSH: " : ""}Phone message from ${input.caller_name}`, text + "\n\n- Max", cci ? "Max at CCI Events" : "Max at USA Event Carpet"),
       ]);
       call.summary = `${input.caller_name}: ${input.need}`;
       return say({ delivered: results.some((r) => r.ok), texted: results[0].ok, emailed: results[1].ok });
     }
     case "send_link": {
       const to = phone(input.phone);
-      const t = await sendText(to, `USA Event Carpet: colors, photos and product details are here. ${config.carpet.website}\nQuestions? Call ${config.carpet.number}.`, config.carpet.fromNumber);
+      const body = input.which === "cci"
+        ? `CCI Events: our work, services and contact page are here. ${config.carpet.cciWebsite}\nQuestions? Call ${config.carpet.number}.`
+        : `USA Event Carpet: colors, photos and product details are here. ${config.carpet.website}\nQuestions? Call ${config.carpet.number}.`;
+      const t = await sendText(to, body, config.carpet.fromNumber);
       return say({ sent: t.ok, to, error: t.error });
     }
     case "transfer_to_person": {
@@ -84,6 +93,7 @@ export async function runCarpetTool(name, input, call) {
       return say({ transferring: true, say_first: "Sure, let me see if someone's free. One moment." });
     }
     case "end_call": {
+      if (call.handoff?.action === "transfer") return say({ ending: false, note: "A transfer is already in progress. Do nothing else; do not say goodbye." });
       call.handoff = { action: "hangup", summary: input.summary };
       call.summary = input.summary;
       return say({ ending: true });

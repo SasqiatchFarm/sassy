@@ -59,6 +59,8 @@ export const config = {
     voiceId: env("CARPET_TTS_VOICE", ""), // a male ElevenLabs voice
     transferCells: list("CARPET_TRANSFER_CELLS"), // Julie, Greg
     email: env("CARPET_EMAIL", "info@usaeventcarpet.com"),
+    cciEmail: env("CCI_EMAIL", "julie@ccievents.com"), // CCI Events shares the same phone number
+    cciWebsite: env("CCI_WEBSITE", "https://www.ccievents.com"),
     website: env("CARPET_WEBSITE", "https://www.usaeventcarpet.com"),
     timezone: "America/New_York",
   },
