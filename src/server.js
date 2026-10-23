@@ -15,6 +15,7 @@ import { buildCarpetPrompt, carpetGreeting, carpetOpen } from "./carpet-prompt.j
 import { carpetTools, runCarpetTool } from "./carpet-tools.js";
 import { booking } from "./booking.js";
 import { scheduleDigest, sendDigest, pendingIssues } from "./digest.js";
+import { handleIncomingText, emptyTwiml } from "./sms.js";
 
 const { VoiceResponse } = twilio.twiml;
 const app = express();
@@ -84,7 +85,8 @@ function deskTwiml() {
 // 1. A call comes in.
 app.post("/voice/incoming", twilioOnly, (req, res) => {
   res.type("text/xml");
-  if (isCarpetNumber(req.body.To)) {
+  // ?line=carpet on the webhook URL forces Max (handy for test-calling him on another number).
+  if (isCarpetNumber(req.body.To) || req.query.line === "carpet") {
     console.log(`carpet call ${req.body.CallSid} from ${req.body.From}; office ${carpetOpen() ? "open" : "closed"}`);
     return res.send(maxTwiml());
   }
@@ -157,6 +159,12 @@ app.post("/voice/transfer-done", twilioOnly, (req, res) => {
   }
   vr.hangup();
   res.type("text/xml").send(vr.toString());
+});
+
+// Texts to any of our numbers.
+app.post("/sms/incoming", twilioOnly, (req, res) => {
+  res.type("text/xml").send(emptyTwiml());
+  handleIncomingText(req.body).catch((e) => console.error("text forwarding failed", e));
 });
 
 // Health and admin
