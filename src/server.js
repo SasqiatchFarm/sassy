@@ -78,7 +78,7 @@ function deskTwiml() {
     action: `https://${config.publicHost}/voice/after-desk`,
     callerId: undefined,
   });
-  dial.sip(config.twilio.deskSip);
+  for (const sip of config.twilio.deskSips) dial.sip(sip); // all desk phones ring at once
   return vr.toString();
 }
 
@@ -121,7 +121,7 @@ app.post("/voice/relay-done", twilioOnly, (req, res) => {
     for (const n of (pick.length ? pick : cells)) dial.number({ url: whisper }, n);
   } else if (handoff.action === "transfer") {
     const dial = vr.dial({ timeout: config.twilio.deskRingSeconds, action: `https://${config.publicHost}/voice/transfer-done` });
-    dial.sip(config.twilio.deskSip);
+    for (const sip of config.twilio.deskSips) dial.sip(sip);
   } else {
     vr.hangup();
   }

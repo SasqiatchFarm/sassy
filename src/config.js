@@ -16,6 +16,11 @@ export const config = {
     authToken: env("TWILIO_AUTH_TOKEN"),
     fromNumber: env("TWILIO_FROM_NUMBER"), // the park's texting number, e.g. +14235152184
     deskSip: env("FRONT_DESK_SIP", "sip:frontdesk@sasquatchfarm.sip.us1.twilio.com"),
+    // Every desk phone login that should ring on a call: the corded phone and the cordless base.
+    deskSips: list("FRONT_DESK_SIPS").length ? list("FRONT_DESK_SIPS") : [
+      env("FRONT_DESK_SIP", "sip:frontdesk@sasquatchfarm.sip.us1.twilio.com"),
+      "sip:handsets@sasquatchfarm.sip.us1.twilio.com",
+    ],
     deskRingSeconds: Number(env("DESK_RING_SECONDS", "25")), // ~5 rings
   },
 
