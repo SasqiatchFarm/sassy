@@ -106,6 +106,7 @@ export class CallBrain {
         if (err?.name === "AbortError" || this.abort.signal.aborted) {
           const heard = (this.interruptedAt || spoken || "").trim();
           if (heard) this.messages.push({ role: "assistant", content: heard + " [caller interrupted]" });
+          console.log(`[${this.callSid}] ${this.line.name} interrupted after: ${heard}`);
           this.interruptedAt = "";
           return { interrupted: true };
         }
@@ -115,7 +116,10 @@ export class CallBrain {
         return { error: true };
       }
 
-      if (spoken.trim()) this.transcript.push({ who: "sassy", text: spoken.trim() });
+      if (spoken.trim()) {
+        this.transcript.push({ who: "sassy", text: spoken.trim() });
+        console.log(`[${this.callSid}] ${this.line.name} said: ${spoken.trim()}`);
+      }
 
       // Keep only what matters for the record: spoken text and tool calls. Thinking blocks are
       // tied to the exact conversation they came from and break the next request once an

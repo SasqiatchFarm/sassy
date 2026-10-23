@@ -116,7 +116,7 @@ export async function runCarpetTool(name, input, call) {
       if (!call.officeHours) return say({ transferring: false, note: "The office is closed. Take a message instead." });
       if (!config.carpet.transferCells.length) return say({ transferring: false, note: "No transfer numbers are set up. Take a message instead." });
       call.handoff = { action: "transfer", who: "julie", reason: input.reason || "" };
-      return say({ transferring: true, say_first: "Okay, I'll get her for you, hold on one moment." });
+      return say({ transferring: true, note: "Ringing her now. If you have NOT yet told the caller you're getting her, say once: 'Okay, I'll get her for you, hold on one moment.' If you already said it, say nothing at all." });
     }
     case "hand_off_to_max": {
       if (!config.carpet.maxVoiceId) return say({ switched: false, note: "Same voice; just carry on as Max." });

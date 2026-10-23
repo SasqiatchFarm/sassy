@@ -236,7 +236,7 @@ export async function runTool(name, input, call) {
     }
     case "transfer_to_desk": {
       call.handoff = { action: "transfer", reason: input.reason || "" };
-      return say({ transferring: true, say_first: "Sure, one moment while I connect you to the front desk." });
+      return say({ transferring: true, note: "Connecting now. If you have NOT yet told the caller, say once: 'Sure, one moment while I connect you to the front desk.' If you already said it, say nothing at all." });
     }
     case "switch_language": {
       const es = input.language === "es";

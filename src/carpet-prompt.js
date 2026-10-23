@@ -11,11 +11,10 @@ export const carpetOpen = (date) => withinHours(CARPET_HOURS, config.carpet.time
 export function carpetGreeting(officeHours, transferFailed = false) {
   if (transferFailed) return "Hey, it's me again. She's not available right now. Can I take a message? She'll get right back to you.";
   const openers = [
-    "Hello, how can we help you? Are you looking for CCI Events or USA Event Carpet?",
-    "Hey, thanks for calling! This is Rafi. Are you looking for USA Event Carpet or CCI Events?",
-    "Hi there, you've reached USA Event Carpet and CCI Events. Which one can I help you with today?",
-    "Thanks for calling! Rafi here. Is this for CCI Events or USA Event Carpet?",
-    "Hey there, good to hear from you! Are you calling about CCI Events or USA Event Carpet?",
+    "Hi there! How can I help you today? Are you calling for CCI Events or USA Event Carpet?",
+    "Hey, thanks for calling! How can I help you? Is this for CCI Events or USA Event Carpet?",
+    "Hello! Great to hear from you. How can I help? Are you calling for CCI Events or USA Event Carpet?",
+    "Hi! What can we make happen for you today? Are you calling for CCI Events or USA Event Carpet?",
   ];
   const pick = openers[Math.floor(Math.random() * openers.length)];
   return officeHours
