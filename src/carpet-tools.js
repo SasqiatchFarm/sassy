@@ -27,7 +27,7 @@ export const carpetTools = [
   },
   {
     name: "send_link",
-    description: "Text the caller a website link: USA Event Carpet (colors, products) or CCI Events (past work, services).",
+    description: "Text the caller a website link: USA Event Carpet (goes to the recycled event carpet page, with the main site for everything else) or CCI Events (past work, services).",
     input_schema: {
       type: "object",
       properties: {
@@ -109,7 +109,7 @@ export async function runCarpetTool(name, input, call) {
       const to = phone(input.phone);
       const body = input.which === "cci"
         ? `CCI Events: our work, services and contact page are here. ${config.carpet.cciWebsite}\nQuestions? Call ${config.carpet.number}.`
-        : `USA Event Carpet: colors, photos and product details are here. ${config.carpet.website}\nQuestions? Call ${config.carpet.number}.`;
+        : `USA Event Carpet: here's our recycled event carpet, made from recycled bottles and recycled again after your event. ${config.carpet.website}/recycled-event-carpet.html\nThe rest of our carpet, turf and flooring is at ${config.carpet.website}\nQuestions or to order? Call ${config.carpet.number}.`;
       const t = await sendText(to, body, config.carpet.fromNumber);
       return say({ sent: t.ok, to, error: t.error });
     }
