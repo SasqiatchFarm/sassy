@@ -50,8 +50,8 @@ export const carpetTools = [
     },
   },
   {
-    name: "hand_off_to_max",
-    description: "Rafi hands the call to Max for the USA Event Carpet side. Switches the voice on the line to Max. Call it right after saying 'Max, you're up!' and before Max's first line.",
+    name: "hand_off_to_rafi",
+    description: "Max hands the call to Rafi for the CCI Events side. Switches the voice on the line to Rafi. Call it right after saying 'Rafi, you're up!' and before Rafi's first line.",
     input_schema: { type: "object", properties: {} },
   },
   {
@@ -121,15 +121,15 @@ export async function runCarpetTool(name, input, call) {
       call.handoff = { action: "transfer", who, reason: input.reason || "" };
       return say({ transferring: true, note: `Ringing ${who === "greg" ? "Greg" : "her"} now. If you have NOT yet told the caller, say once: 'I'll make it happen for you, hold on one moment.' If you already said it, say nothing at all.` });
     }
-    case "hand_off_to_max": {
-      if (!config.carpet.maxVoiceId) return say({ switched: false, note: "Same voice; just carry on as Max." });
+    case "hand_off_to_rafi": {
+      if (!config.carpet.voiceId) return say({ switched: false, note: "Same voice; just carry on as Rafi." });
       if (call.sendControl) call.sendControl({ type: "language", ttsLanguage: "en-GB" });
-      call.persona = "max";
-      return say({ switched: true, note: "You are Max now. Say Max's opening line." });
+      call.persona = "rafi";
+      return say({ switched: true, note: "You are Rafi now. Say Rafi's opening line." });
     }
     case "switch_language": {
       const es = input.language === "es";
-      const tts = es ? "es-US" : (call.persona === "max" ? "en-GB" : "en-US");
+      const tts = es ? "es-US" : (call.persona === "rafi" ? "en-GB" : "en-US");
       if (call.sendControl) call.sendControl({ type: "language", ttsLanguage: tts, transcriptionLanguage: es ? "es-US" : "en-US" });
       return say({ switched: true, now: es ? "Spanish" : "English", note: es ? "Speak Spanish from here on." : "Speak English from here on." });
     }

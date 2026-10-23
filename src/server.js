@@ -16,6 +16,7 @@ import { carpetTools, runCarpetTool } from "./carpet-tools.js";
 import { booking } from "./booking.js";
 import { scheduleDigest, sendDigest, pendingIssues } from "./digest.js";
 import { handleIncomingText, emptyTwiml } from "./sms.js";
+import { sendEmail } from "./alerts.js";
 
 const { VoiceResponse } = twilio.twiml;
 const app = express();
@@ -66,7 +67,7 @@ function relayTwiml({ greeting, voiceId, flags = {}, extraVoices = [] }) {
   return vr.toString();
 }
 
-export const MAX_LANGUAGE_CODE = "en-GB"; // label only; it's still English, just Max's voice
+export const MAX_LANGUAGE_CODE = "en-GB"; // label only; it's still English, just the second voice (Rafi)
 
 function sassyTwiml(officeHours = isOfficeHours()) {
   return relayTwiml({
@@ -79,12 +80,13 @@ function sassyTwiml(officeHours = isOfficeHours()) {
 function maxTwiml(transferFailed = false) {
   return relayTwiml({
     greeting: carpetGreeting(carpetOpen(), transferFailed),
-    voiceId: config.carpet.voiceId || config.voice.voiceId,
+    // Max answers (MAX_TTS_VOICE); Rafi's voice (CARPET_TTS_VOICE) sits in the en-GB slot for the handoff.
+    voiceId: config.carpet.maxVoiceId || config.carpet.voiceId || config.voice.voiceId,
     flags: { line: "carpet", ...(transferFailed ? { transferFailed: String(transferFailed) } : {}) },
     extraVoices: [
-      ...(config.carpet.maxVoiceId ? [{ code: MAX_LANGUAGE_CODE, voiceId: config.carpet.maxVoiceId }] : []),
+      ...(config.carpet.voiceId ? [{ code: MAX_LANGUAGE_CODE, voiceId: config.carpet.voiceId }] : []),
       // Spanish: same voice (the ElevenLabs voices are bilingual), Spanish listening.
-      { code: "es-US", voiceId: config.carpet.voiceId || config.voice.voiceId, speechModel: "nova-2-general" },
+      { code: "es-US", voiceId: config.carpet.maxVoiceId || config.carpet.voiceId || config.voice.voiceId, speechModel: "nova-2-general" },
     ],
   });
 }
@@ -212,7 +214,21 @@ wss.on("connection", (ws, req) => {
   const finishCall = async () => {
     if (!brain) return;
     const summary = brain.summary || "Call ended by caller.";
-    if (brain.line !== FARM_LINE) return; // only farm calls go to the booking site's call log
+    if (brain.line !== FARM_LINE) {
+      // CCI / carpet line: email the whole conversation to the office so nothing is lost.
+      const transcript = brain.transcriptText();
+      if (!transcript.trim()) return;
+      const stamp = new Date().toLocaleString("en-US", { timeZone: config.carpet.timezone, hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
+      const who = brain.persona === "rafi" ? "Rafi" : "Max";
+      sendEmail(
+        config.carpet.cciEmail,
+        `Call ${stamp} from ${brain.from || "unknown"}: ${summary.slice(0, 80)}`,
+        `Caller: ${brain.from || "unknown"}\nLine: 225-238-6303\nAnswered by: ${who}\nSummary: ${summary}\n\n--- Conversation ---\n${transcript}`,
+        `${who} at CCI Events`,
+        "cci",
+      ).catch(() => {});
+      return;
+    }
     booking.callSummary({
       call_sid: brain.callSid,
       from: brain.from,
