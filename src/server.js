@@ -113,9 +113,9 @@ app.post("/voice/relay-done", twilioOnly, (req, res) => {
   try { handoff = JSON.parse(req.body.HandoffData || "{}"); } catch {}
   const vr = new VoiceResponse();
   if (handoff.action === "transfer" && isCarpetNumber(req.body.To)) {
-    // Max: ring the team's cells. Whoever presses 1 first gets the call; voicemail can't grab it.
+    // Max: ring the owner's cell (first number only). She presses 1 to take it; voicemail can't grab it.
     const cells = config.carpet.transferCells;
-    const pick = handoff.who === "greg" ? cells.slice(1, 2) : handoff.who === "julie" ? cells.slice(0, 1) : cells;
+    const pick = cells.slice(0, 1);
     const dial = vr.dial({ timeout: 25, action: `https://${config.publicHost}/voice/carpet-transfer-done`, callerId: config.carpet.number });
     const whisper = `https://${config.publicHost}/voice/whisper?${new URLSearchParams({ reason: handoff.reason || "" })}`;
     for (const n of (pick.length ? pick : cells)) dial.number({ url: whisper }, n);
@@ -133,7 +133,7 @@ app.post("/voice/relay-done", twilioOnly, (req, res) => {
 app.post("/voice/whisper", twilioOnly, (req, res) => {
   const vr = new VoiceResponse();
   const g = vr.gather({ numDigits: 1, timeout: 6, action: `https://${config.publicHost}/voice/whisper-accept` });
-  g.say(`Event Carpet call from Max. ${req.query.reason || ""} Press 1 to accept.`);
+  g.say(`Call for you from the office line. ${req.query.reason || ""} Press 1 to take it.`);
   vr.hangup();
   res.type("text/xml").send(vr.toString());
 });
