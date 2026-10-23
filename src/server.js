@@ -134,7 +134,9 @@ app.post("/voice/relay-done", twilioOnly, (req, res) => {
     // Max: ring the owner's cell (first number only). She presses 1 to take it; voicemail can't grab it.
     const cells = config.carpet.transferCells;
     const pick = cells.slice(0, 1);
-    const dial = vr.dial({ timeout: 25, action: `https://${config.publicHost}/voice/carpet-transfer-done`, callerId: config.carpet.number });
+    // No explicit callerId: Twilio shows the number that was dialed (the 225 line) by default,
+    // and an explicit one gets rejected if it doesn't match the account's records exactly.
+    const dial = vr.dial({ timeout: 25, action: `https://${config.publicHost}/voice/carpet-transfer-done` });
     const whisper = `https://${config.publicHost}/voice/whisper?${new URLSearchParams({ reason: handoff.reason || "" })}`;
     for (const n of (pick.length ? pick : cells)) dial.number({ url: whisper }, n);
   } else if (handoff.action === "transfer") {
@@ -166,7 +168,7 @@ app.post("/voice/carpet-transfer-done", twilioOnly, (req, res) => {
   res.type("text/xml");
   const status = req.body.DialCallStatus;
   if (status === "completed" || status === "answered") return res.send(new VoiceResponse().toString());
-  console.log(`carpet transfer ${status}; Max taking a message on ${req.body.CallSid}`);
+  console.log(`carpet transfer ${status} (leg ${req.body.DialCallSid || "none"}, ${req.body.DialCallDuration || 0}s); Max taking a message on ${req.body.CallSid}`);
   return res.send(maxTwiml(true));
 });
 
