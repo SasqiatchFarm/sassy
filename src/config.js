@@ -45,6 +45,16 @@ export const config = {
     pass: env("SMTP_PASS"),
   },
 
+  // CCI Events mailbox: Rafi's and Max's emails go out from here (Gmail login + app password).
+  // CCI_SMTP_FROM is optional: an alias on that account (e.g. staff@ccievents.com) to show as the sender.
+  cciSmtp: {
+    host: env("CCI_SMTP_HOST", env("SMTP_HOST", "smtp.gmail.com")),
+    port: Number(env("CCI_SMTP_PORT", env("SMTP_PORT", "465"))),
+    user: env("CCI_SMTP_USER"),
+    pass: env("CCI_SMTP_PASS"),
+    from: env("CCI_SMTP_FROM"),
+  },
+
   booking: {
     apiUrl: env("BOOKING_API_URL", "https://book.sasquatchfarm.com/sassy.php?do="),
     apiKey: env("BOOKING_API_KEY"),

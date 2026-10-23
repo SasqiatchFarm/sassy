@@ -44,24 +44,28 @@ export async function postSlack(text) {
   }
 }
 
-let mailer = null;
-function mail() {
-  if (!mailer && config.smtp.user && config.smtp.pass) {
-    mailer = nodemailer.createTransport({
-      host: config.smtp.host,
-      port: config.smtp.port,
-      secure: config.smtp.port === 465,
-      auth: { user: config.smtp.user, pass: config.smtp.pass },
-    });
+// Two mailboxes: the farm's (Sassy) and CCI Events' (Rafi and Max). If the CCI one isn't
+// set up yet, Rafi and Max fall back to the farm mailbox so nothing is lost.
+const mailers = {};
+function mail(account) {
+  const smtp = account === "cci" && config.cciSmtp.user && config.cciSmtp.pass ? config.cciSmtp : config.smtp;
+  const key = smtp.user;
+  if (!mailers[key] && smtp.user && smtp.pass) {
+    mailers[key] = { smtp, transport: nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.port === 465,
+      auth: { user: smtp.user, pass: smtp.pass },
+    }) };
   }
-  return mailer;
+  return mailers[key] || null;
 }
 
-export async function sendEmail(to, subject, text, senderName = "Sassy at Sasquatch Farm") {
-  const m = mail();
+export async function sendEmail(to, subject, text, senderName = "Sassy at Sasquatch Farm", account = "farm") {
+  const m = mail(account);
   if (!m) return { ok: false, error: "email not set up" };
   try {
-    await m.sendMail({ from: `"${senderName}" <${config.smtp.user}>`, to, subject, text });
+    await m.transport.sendMail({ from: `"${senderName}" <${m.smtp.from || m.smtp.user}>`, to, subject, text });
     return { ok: true };
   } catch (err) {
     console.error("email failed", err.message);

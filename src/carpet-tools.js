@@ -99,7 +99,7 @@ export async function runCarpetTool(name, input, call) {
       const text = lines.join("\n");
       const results = await Promise.all([
         config.julieCell ? sendText(config.julieCell, text, config.carpet.fromNumber) : { ok: false },
-        sendEmail(cci ? config.carpet.cciEmail : config.carpet.email, `${input.rush ? "RUSH: " : ""}Phone message from ${input.caller_name}`, text + (cci ? "\n\n- Rafi" : "\n\n- Max"), cci ? "Rafi at CCI Events" : "Max at USA Event Carpet"),
+        sendEmail(cci ? config.carpet.cciEmail : config.carpet.email, `${input.rush ? "RUSH: " : ""}Phone message from ${input.caller_name}`, text + (cci ? "\n\n- Rafi" : "\n\n- Max"), cci ? "Rafi at CCI Events" : "Max at USA Event Carpet", "cci"),
       ]);
       call.summary = `${input.caller_name}: ${input.need}`;
       return say({ delivered: results.some((r) => r.ok), texted: results[0].ok, emailed: results[1].ok });
