@@ -14,6 +14,9 @@ export const carpetTools = [
         caller_name: { type: "string" },
         caller_phone: { type: "string", description: "Default the caller's number" },
         company: { type: "string", description: "The caller's own company, if they mentioned one" },
+        email: { type: "string", description: "If they gave one" },
+        event_name: { type: "string", description: "Event name and type, if given" },
+        order_ref: { type: "string", description: "Order, job or invoice number, if this is about an existing order" },
         event_date: { type: "string", description: "When the event is, as they said it" },
         event_location: { type: "string", description: "City and venue, as they said it" },
         need: { type: "string", description: "What they need: product, size/area, anything else, in a sentence or two" },
@@ -46,6 +49,16 @@ export const carpetTools = [
     },
   },
   {
+    name: "hand_off_to_max",
+    description: "Rafi hands the call to Max for the USA Event Carpet side. Switches the voice on the line to Max. Call it right after saying 'Max, you're up!' and before Max's first line.",
+    input_schema: { type: "object", properties: {} },
+  },
+  {
+    name: "switch_language",
+    description: "Switch the phone line's language for listening and speaking: 'es' for Spanish, 'en' for English. Use the moment a caller speaks Spanish or asks for it.",
+    input_schema: { type: "object", properties: { language: { type: "string", enum: ["es", "en"] } }, required: ["language"] },
+  },
+  {
     name: "read_website",
     description: "Look something up live on one of our websites (CCI Events or USA Event Carpet). Give a page name or path like 'services', 'work', 'interiors', 'about', 'resources', 'brochure', 'contact', 'carpet', 'glitter-carpet', 'event-fencing', or a search word. Returns the page text to answer from. Say a short bridge line before using it.",
     input_schema: {
@@ -76,7 +89,9 @@ export async function runCarpetTool(name, input, call) {
       const cci = input.business === "cci";
       const lines = [
         `${input.rush ? "RUSH - " : ""}${cci ? "CCI Events" : "Event Carpet"} message ${stamp}`,
-        `${input.caller_name}${input.company ? ` (${input.company})` : ""} ${phone(input.caller_phone)}`,
+        `${input.caller_name}${input.company ? ` (${input.company})` : ""} ${phone(input.caller_phone)}${input.email ? ` ${input.email}` : ""}`,
+        input.event_name ? `Event: ${input.event_name}` : null,
+        input.order_ref ? `Order/job: ${input.order_ref}` : null,
         input.event_date ? `When: ${input.event_date}` : null,
         input.event_location ? `Where: ${input.event_location}` : null,
         `Need: ${input.need}`,
@@ -101,7 +116,19 @@ export async function runCarpetTool(name, input, call) {
       if (!call.officeHours) return say({ transferring: false, note: "The office is closed. Take a message instead." });
       if (!config.carpet.transferCells.length) return say({ transferring: false, note: "No transfer numbers are set up. Take a message instead." });
       call.handoff = { action: "transfer", who: "julie", reason: input.reason || "" };
-      return say({ transferring: true, say_first: "Sure, hold on a minute, I'll get her." });
+      return say({ transferring: true, say_first: "Okay, I'll get her for you, hold on one moment." });
+    }
+    case "hand_off_to_max": {
+      if (!config.carpet.maxVoiceId) return say({ switched: false, note: "Same voice; just carry on as Max." });
+      if (call.sendControl) call.sendControl({ type: "language", ttsLanguage: "en-GB" });
+      call.persona = "max";
+      return say({ switched: true, note: "You are Max now. Say Max's opening line." });
+    }
+    case "switch_language": {
+      const es = input.language === "es";
+      const tts = es ? "es-US" : (call.persona === "max" ? "en-GB" : "en-US");
+      if (call.sendControl) call.sendControl({ type: "language", ttsLanguage: tts, transcriptionLanguage: es ? "es-US" : "en-US" });
+      return say({ switched: true, now: es ? "Spanish" : "English", note: es ? "Speak Spanish from here on." : "Speak English from here on." });
     }
     case "read_website": {
       const r = await readWebsite(input.site, input.page || "");

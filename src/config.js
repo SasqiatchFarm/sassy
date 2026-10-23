@@ -56,7 +56,8 @@ export const config = {
   carpet: {
     number: env("CARPET_NUMBER", "+12252386303"),
     fromNumber: env("CARPET_FROM_NUMBER", "+12252386303"), // texts to Julie go out from this number
-    voiceId: env("CARPET_TTS_VOICE", ""), // a male ElevenLabs voice
+    voiceId: env("CARPET_TTS_VOICE", ""), // Rafi's voice (answers the line)
+    maxVoiceId: env("MAX_TTS_VOICE", "nPczCjzI2devNBz1zQrb-turbo_v2_5-1.0_0.5_0.8"), // Max's voice (ElevenLabs "Brian")
     transferCells: list("CARPET_TRANSFER_CELLS"), // Julie, Greg
     email: env("CARPET_EMAIL", "info@usaeventcarpet.com"),
     cciEmail: env("CCI_EMAIL", "julie@ccievents.com"), // CCI Events shares the same phone number

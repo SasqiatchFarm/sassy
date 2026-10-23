@@ -40,7 +40,7 @@ const isCarpetNumber = (to) => !!config.carpet.number && String(to || "").replac
 
 // Connect the caller to the live speech link. `flags` ride along in the WebSocket URL so the
 // brain knows which line it is and whether a transfer just failed.
-function relayTwiml({ greeting, voiceId, flags = {} }) {
+function relayTwiml({ greeting, voiceId, flags = {}, extraVoices = [] }) {
   const vr = new VoiceResponse();
   const connect = vr.connect({ action: `https://${config.publicHost}/voice/relay-done` });
   const qs = new URLSearchParams(flags).toString();
@@ -55,12 +55,25 @@ function relayTwiml({ greeting, voiceId, flags = {} }) {
     dtmfDetection: "true",
   };
   if (voiceId) attrs.voice = voiceId;
-  connect.conversationRelay(attrs);
+  const relay = connect.conversationRelay(attrs);
+  // A second "language" is how the line carries a second voice: same English, different speaker.
+  // The brain switches with a {type:"language"} message mid-call (Rafi hands off to Max).
+  for (const v of extraVoices) {
+    const lang = { code: v.code, ttsProvider: config.voice.provider, transcriptionProvider: "Deepgram", speechModel: v.speechModel || "nova-3-general" };
+    if (v.voiceId) lang.voice = v.voiceId;
+    relay.language(lang);
+  }
   return vr.toString();
 }
 
+export const MAX_LANGUAGE_CODE = "en-GB"; // label only; it's still English, just Max's voice
+
 function sassyTwiml(officeHours = isOfficeHours()) {
-  return relayTwiml({ greeting: greetingFor(officeHours && !config.alwaysAnswer), voiceId: config.voice.voiceId });
+  return relayTwiml({
+    greeting: greetingFor(officeHours && !config.alwaysAnswer),
+    voiceId: config.voice.voiceId,
+    extraVoices: [{ code: "es-US", voiceId: config.voice.voiceId, speechModel: "nova-2-general" }], // Sassy speaks Spanish too
+  });
 }
 
 function maxTwiml(transferFailed = false) {
@@ -68,6 +81,11 @@ function maxTwiml(transferFailed = false) {
     greeting: carpetGreeting(carpetOpen(), transferFailed),
     voiceId: config.carpet.voiceId || config.voice.voiceId,
     flags: { line: "carpet", ...(transferFailed ? { transferFailed: "1" } : {}) },
+    extraVoices: [
+      ...(config.carpet.maxVoiceId ? [{ code: MAX_LANGUAGE_CODE, voiceId: config.carpet.maxVoiceId }] : []),
+      // Spanish: same voice (the ElevenLabs voices are bilingual), Spanish listening.
+      { code: "es-US", voiceId: config.carpet.voiceId || config.voice.voiceId, speechModel: "nova-2-general" },
+    ],
   });
 }
 
@@ -212,6 +230,8 @@ wss.on("connection", (ws, req) => {
         brain = carpet
           ? new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: carpetOpen(), line: CARPET_LINE, promptExtra: { transferFailed: flags.get("transferFailed") === "1" } })
           : new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: isOfficeHours() });
+        // Lets a tool change the voice mid-call (Rafi -> Max) by sending a control message.
+        brain.sendControl = (obj) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };
         console.log(`[${msg.callSid}] ${brain.line.name} on the line with ${msg.from}`);
         break;
       }

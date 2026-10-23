@@ -149,6 +149,11 @@ export const toolDefinitions = [
     input_schema: { type: "object", properties: { reason: { type: "string" } } },
   },
   {
+    name: "switch_language",
+    description: "Switch the phone line's language for listening and speaking: 'es' for Spanish, 'en' for English. Use the moment a caller speaks Spanish or asks for it.",
+    input_schema: { type: "object", properties: { language: { type: "string", enum: ["es", "en"] } }, required: ["language"] },
+  },
+  {
     name: "end_call",
     description: "Hang up politely after you've said the closing line.",
     input_schema: { type: "object", properties: { summary: { type: "string", description: "One line: who called, what they wanted, what you did" } }, required: ["summary"] },
@@ -232,6 +237,11 @@ export async function runTool(name, input, call) {
     case "transfer_to_desk": {
       call.handoff = { action: "transfer", reason: input.reason || "" };
       return say({ transferring: true, say_first: "Sure, one moment while I connect you to the front desk." });
+    }
+    case "switch_language": {
+      const es = input.language === "es";
+      if (call.sendControl) call.sendControl({ type: "language", ttsLanguage: es ? "es-US" : "en-US", transcriptionLanguage: es ? "es-US" : "en-US" });
+      return say({ switched: true, now: es ? "Spanish" : "English", note: es ? "Speak Spanish from here on." : "Speak English from here on." });
     }
     case "end_call": {
       if (call.handoff?.action === "transfer") return say({ ending: false, note: "A transfer is already in progress. Do nothing else; do not say goodbye." });
