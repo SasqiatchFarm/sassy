@@ -46,6 +46,18 @@ export const carpetTools = [
     },
   },
   {
+    name: "read_website",
+    description: "Look something up live on one of our websites (CCI Events or USA Event Carpet). Give a page name or path like 'services', 'work', 'interiors', 'about', 'resources', 'brochure', 'contact', 'carpet', 'glitter-carpet', 'event-fencing', or a search word. Returns the page text to answer from. Say a short bridge line before using it.",
+    input_schema: {
+      type: "object",
+      properties: {
+        site: { type: "string", enum: ["cci", "carpet"] },
+        page: { type: "string", description: "Page name, path, or a word to look for" },
+      },
+      required: ["site", "page"],
+    },
+  },
+  {
     name: "end_call",
     description: "Hang up politely after the closing line.",
     input_schema: { type: "object", properties: { summary: { type: "string", description: "One line: who called, what they wanted" } }, required: ["summary"] },
@@ -91,6 +103,10 @@ export async function runCarpetTool(name, input, call) {
       call.handoff = { action: "transfer", who: "julie", reason: input.reason || "" };
       return say({ transferring: true, say_first: "Sure, hold on a minute, I'll get her." });
     }
+    case "read_website": {
+      const r = await readWebsite(input.site, input.page || "");
+      return say(r);
+    }
     case "end_call": {
       if (call.handoff?.action === "transfer") return say({ ending: false, note: "A transfer is already in progress. Do nothing else; do not say goodbye." });
       call.handoff = { action: "hangup", summary: input.summary };
@@ -100,4 +116,61 @@ export async function runCarpetTool(name, input, call) {
     default:
       return say({ error: `unknown tool ${name}` });
   }
+}
+
+// --- Live website lookup -------------------------------------------------------
+// Pulls a page from ccievents.com or usaeventcarpet.com, strips it to plain text, and
+// returns the part that matches what the caller asked about. Cached for an hour.
+const SITE_PAGES = {
+  cci: ["", "services", "work", "interiors", "about", "resources", "brochure", "contact"],
+  carpet: ["", "carpet", "exposition-carpet", "colorful-recyclable", "glitter-carpet", "recycled-event-carpet", "artificial-turf-grass", "event-turf", "vinyl-plank", "rolled-vinyl", "gym-floor-cover-tiles", "event-fencing", "accessories", "contact"],
+};
+const pageCache = new Map();
+function htmlToText(html) {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<\/(p|div|li|h[1-6]|br|tr|section|article)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&rsquo;/g, "'").replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+}
+async function fetchPage(site, page) {
+  const base = site === "cci" ? config.carpet.cciWebsite : config.carpet.website;
+  const url = site === "cci" ? `${base}/${page}${page ? "/" : ""}` : `${base}/${page ? page + ".html" : ""}`;
+  const key = url;
+  const hit = pageCache.get(key);
+  if (hit && Date.now() - hit.at < 3600_000) return hit.text;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "SassyReceptionist/1.0" } });
+    if (!res.ok) return null;
+    const text = htmlToText(await res.text()).slice(0, 12000);
+    pageCache.set(key, { at: Date.now(), text });
+    return text;
+  } catch { return null; } finally { clearTimeout(timer); }
+}
+export async function readWebsite(site, query) {
+  const q = String(query || "").toLowerCase().trim().replace(/^\/+|\/+$/g, "").replace(/\.html$/, "");
+  const pages = SITE_PAGES[site] || SITE_PAGES.cci;
+  // 1) exact page name
+  let page = pages.find((p) => p === q) ?? pages.find((p) => p && (p.includes(q) || q.includes(p)));
+  if (page !== undefined) {
+    const text = await fetchPage(site, page);
+    if (text) return { page: page || "home", text: text.slice(0, 3500) };
+  }
+  // 2) search across the main pages for the word
+  const words = q.split(/\s+/).filter((w) => w.length > 2);
+  const found = [];
+  for (const p of pages) {
+    const text = await fetchPage(site, p);
+    if (!text) continue;
+    const lower = text.toLowerCase();
+    const idx = words.map((w) => lower.indexOf(w)).find((i) => i >= 0);
+    if (idx !== undefined && idx >= 0) found.push({ page: p || "home", snippet: text.slice(Math.max(0, idx - 300), idx + 900) });
+    if (found.length >= 2) break;
+  }
+  if (found.length) return { matches: found };
+  return { note: "Nothing on the site matched that. Answer from what you know, or take a message so the team follows up." };
 }
