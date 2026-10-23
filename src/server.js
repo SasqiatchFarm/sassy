@@ -80,7 +80,7 @@ function maxTwiml(transferFailed = false) {
   return relayTwiml({
     greeting: carpetGreeting(carpetOpen(), transferFailed),
     voiceId: config.carpet.voiceId || config.voice.voiceId,
-    flags: { line: "carpet", ...(transferFailed ? { transferFailed: "1" } : {}) },
+    flags: { line: "carpet", ...(transferFailed ? { transferFailed: String(transferFailed) } : {}) },
     extraVoices: [
       ...(config.carpet.maxVoiceId ? [{ code: MAX_LANGUAGE_CODE, voiceId: config.carpet.maxVoiceId }] : []),
       // Spanish: same voice (the ElevenLabs voices are bilingual), Spanish listening.
@@ -131,14 +131,13 @@ app.post("/voice/relay-done", twilioOnly, (req, res) => {
   try { handoff = JSON.parse(req.body.HandoffData || "{}"); } catch {}
   const vr = new VoiceResponse();
   if (handoff.action === "transfer" && isCarpetNumber(req.body.To)) {
-    // Max: ring the owner's cell (first number only). She presses 1 to take it; voicemail can't grab it.
-    const cells = config.carpet.transferCells;
-    const pick = cells.slice(0, 1);
-    // No explicit callerId: Twilio shows the number that was dialed (the 225 line) by default,
-    // and an explicit one gets rejected if it doesn't match the account's records exactly.
-    const dial = vr.dial({ timeout: 25, action: `https://${config.publicHost}/voice/carpet-transfer-done` });
+    // Ring the one person they asked for: Julie (first cell) or Greg (second). They press 1 to
+    // take it, so a cell's voicemail can't grab the call. Caller ID shows the office line.
+    const who = handoff.who === "greg" ? "greg" : "julie";
+    const cell = config.carpet.transferCells[who === "greg" ? 1 : 0] || config.carpet.transferCells[0];
+    const dial = vr.dial({ timeout: 25, action: `https://${config.publicHost}/voice/carpet-transfer-done?${new URLSearchParams({ who })}`, callerId: config.carpet.number });
     const whisper = `https://${config.publicHost}/voice/whisper?${new URLSearchParams({ reason: handoff.reason || "" })}`;
-    for (const n of (pick.length ? pick : cells)) dial.number({ url: whisper }, n);
+    if (cell) dial.number({ url: whisper }, cell);
   } else if (handoff.action === "transfer") {
     const dial = vr.dial({ timeout: config.twilio.deskRingSeconds, action: `https://${config.publicHost}/voice/transfer-done` });
     for (const sip of config.twilio.deskSips) dial.sip(sip);
@@ -168,8 +167,8 @@ app.post("/voice/carpet-transfer-done", twilioOnly, (req, res) => {
   res.type("text/xml");
   const status = req.body.DialCallStatus;
   if (status === "completed" || status === "answered") return res.send(new VoiceResponse().toString());
-  console.log(`carpet transfer ${status} (leg ${req.body.DialCallSid || "none"}, ${req.body.DialCallDuration || 0}s); Max taking a message on ${req.body.CallSid}`);
-  return res.send(maxTwiml(true));
+  console.log(`carpet transfer to ${req.query.who || "julie"} ${status} (leg ${req.body.DialCallSid || "none"}, ${req.body.DialCallDuration || 0}s); taking a message on ${req.body.CallSid}`);
+  return res.send(maxTwiml(req.query.who === "greg" ? "greg" : "julie"));
 });
 
 app.post("/voice/transfer-done", twilioOnly, (req, res) => {
@@ -230,7 +229,7 @@ wss.on("connection", (ws, req) => {
     switch (msg.type) {
       case "setup": {
         brain = carpet
-          ? new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: carpetOpen(), line: CARPET_LINE, promptExtra: { transferFailed: flags.get("transferFailed") === "1" } })
+          ? new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: carpetOpen(), line: CARPET_LINE, promptExtra: { transferFailed: !!flags.get("transferFailed") } })
           : new CallBrain({ callSid: msg.callSid, from: msg.from, to: msg.to, officeHours: isOfficeHours() });
         // Lets a tool change the voice mid-call (Rafi -> Max) by sending a control message.
         brain.sendControl = (obj) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };

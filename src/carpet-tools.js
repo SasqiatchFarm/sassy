@@ -20,7 +20,7 @@ export const carpetTools = [
         event_date: { type: "string", description: "When the event is, as they said it" },
         event_location: { type: "string", description: "City and venue, as they said it" },
         need: { type: "string", description: "What they need: product, size/area, anything else, in a sentence or two" },
-        rush: { type: "boolean", description: "True if they need it this week or said urgent/right away" },
+        rush: { type: "boolean", description: "True for anything urgent: a problem on a job, a client issue, a driver stuck, or they need it right away. Send immediately, before you have every detail." },
       },
       required: ["business", "caller_name", "need"],
     },
@@ -39,13 +39,14 @@ export const carpetTools = [
   },
   {
     name: "transfer_to_person",
-    description: "Ring the owner's cell and connect the caller if she presses 1. Only during office hours, and only after you have the caller's name and reason (never for sales calls).",
+    description: "Ring Julie's or Greg's cell and connect the caller if they press 1. Only during office hours, only when the caller asked for them by name (or for 'a person' with no name, which means Julie), and only after you have the caller's name and reason. Never for sales calls.",
     input_schema: {
       type: "object",
       properties: {
-        reason: { type: "string", description: "One line: who is calling and why, read to her before she accepts" },
+        who: { type: "string", enum: ["julie", "greg"], description: "Who they asked for" },
+        reason: { type: "string", description: "One line: who is calling and why, read to the person before they accept" },
       },
-      required: ["reason"],
+      required: ["who", "reason"],
     },
   },
   {
@@ -88,7 +89,7 @@ export async function runCarpetTool(name, input, call) {
       const stamp = new Date().toLocaleString("en-US", { timeZone: config.carpet.timezone, hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
       const cci = input.business === "cci";
       const lines = [
-        `${input.rush ? "RUSH - " : ""}${cci ? "CCI Events" : "Event Carpet"} message ${stamp}`,
+        `${input.rush ? "URGENT - " : ""}${cci ? "CCI Events" : "Event Carpet"} ${input.rush ? "call" : "message"} ${stamp}`,
         `${input.caller_name}${input.company ? ` (${input.company})` : ""} ${phone(input.caller_phone)}${input.email ? ` ${input.email}` : ""}`,
         input.event_name ? `Event: ${input.event_name}` : null,
         input.order_ref ? `Order/job: ${input.order_ref}` : null,
@@ -99,7 +100,7 @@ export async function runCarpetTool(name, input, call) {
       const text = lines.join("\n");
       const results = await Promise.all([
         config.julieCell ? sendText(config.julieCell, text, config.carpet.fromNumber) : { ok: false },
-        sendEmail(cci ? config.carpet.cciEmail : config.carpet.email, `${input.rush ? "RUSH: " : ""}Phone message from ${input.caller_name}`, text + (cci ? "\n\n- Rafi" : "\n\n- Max"), cci ? "Rafi at CCI Events" : "Max at USA Event Carpet", "cci"),
+        sendEmail(cci ? config.carpet.cciEmail : config.carpet.email, `${input.rush ? "URGENT: " : ""}Phone message from ${input.caller_name}`, text + (cci ? "\n\n- Rafi" : "\n\n- Max"), cci ? "Rafi at CCI Events" : "Max at USA Event Carpet", "cci"),
       ]);
       call.summary = `${input.caller_name}: ${input.need}`;
       return say({ delivered: results.some((r) => r.ok), texted: results[0].ok, emailed: results[1].ok });
@@ -114,9 +115,11 @@ export async function runCarpetTool(name, input, call) {
     }
     case "transfer_to_person": {
       if (!call.officeHours) return say({ transferring: false, note: "The office is closed. Take a message instead." });
-      if (!config.carpet.transferCells.length) return say({ transferring: false, note: "No transfer numbers are set up. Take a message instead." });
-      call.handoff = { action: "transfer", who: "julie", reason: input.reason || "" };
-      return say({ transferring: true, note: "Ringing her now. If you have NOT yet told the caller you're getting her, say once: 'Okay, I'll get her for you, hold on one moment.' If you already said it, say nothing at all." });
+      const who = input.who === "greg" ? "greg" : "julie";
+      const idx = who === "greg" ? 1 : 0;
+      if (!config.carpet.transferCells[idx]) return say({ transferring: false, note: `${who === "greg" ? "Greg's" : "Julie's"} number isn't set up. Take a message instead.` });
+      call.handoff = { action: "transfer", who, reason: input.reason || "" };
+      return say({ transferring: true, note: `Ringing ${who === "greg" ? "Greg" : "her"} now. If you have NOT yet told the caller, say once: 'I'll make it happen for you, hold on one moment.' If you already said it, say nothing at all.` });
     }
     case "hand_off_to_max": {
       if (!config.carpet.maxVoiceId) return say({ switched: false, note: "Same voice; just carry on as Max." });
