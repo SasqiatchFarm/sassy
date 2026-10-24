@@ -3,6 +3,7 @@
 
 const env = (name, fallback = "") => (process.env[name] ?? fallback).trim();
 const list = (name) => env(name).split(",").map((s) => s.trim()).filter(Boolean);
+const secret = (name) => env(name).replace(/\s+/g, ""); // Google shows app passwords with spaces; drop them
 
 export const config = {
   port: Number(env("PORT", "3000")),
@@ -42,7 +43,7 @@ export const config = {
     host: env("SMTP_HOST", "smtp.gmail.com"),
     port: Number(env("SMTP_PORT", "465")),
     user: env("SMTP_USER"),
-    pass: env("SMTP_PASS"),
+    pass: secret("SMTP_PASS"),
   },
 
   // CCI Events mailbox: Rafi's and Max's emails go out from here (Gmail login + app password).
@@ -51,7 +52,7 @@ export const config = {
     host: env("CCI_SMTP_HOST", env("SMTP_HOST", "smtp.gmail.com")),
     port: Number(env("CCI_SMTP_PORT", env("SMTP_PORT", "465"))),
     user: env("CCI_SMTP_USER"),
-    pass: env("CCI_SMTP_PASS"),
+    pass: secret("CCI_SMTP_PASS"),
     from: env("CCI_SMTP_FROM"),
   },
 
