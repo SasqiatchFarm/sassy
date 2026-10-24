@@ -10,6 +10,23 @@ import { sendText, sendEmail } from "./alerts.js";
 
 const digits = (n) => String(n || "").replace(/\D/g, "");
 const isCarpet = (to) => !!config.carpet.number && digits(to).endsWith(digits(config.carpet.number));
+// Download the pictures/files attached to a text (Twilio keeps them behind the account login).
+async function fetchMedia(body, count) {
+  const out = [];
+  const auth = "Basic " + Buffer.from(`${config.twilio.accountSid}:${config.twilio.authToken}`).toString("base64");
+  for (let i = 0; i < Math.min(count, 10); i++) {
+    const url = body[`MediaUrl${i}`];
+    if (!url) continue;
+    try {
+      const res = await fetch(url, { headers: { Authorization: auth }, redirect: "follow" });
+      if (!res.ok) continue;
+      const type = body[`MediaContentType${i}`] || res.headers.get("content-type") || "application/octet-stream";
+      const ext = type.includes("pdf") ? "pdf" : type.includes("png") ? "png" : type.includes("gif") ? "gif" : type.includes("heic") ? "heic" : type.includes("jpeg") || type.includes("jpg") ? "jpg" : "bin";
+      out.push({ filename: `texted-${i + 1}.${ext}`, content: Buffer.from(await res.arrayBuffer()), contentType: type });
+    } catch (e) { console.error("media download failed", e.message); }
+  }
+  return out;
+}
 const pretty = (n) => { const d = digits(n).slice(-10); return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}` : n; };
 
 export async function handleIncomingText(body) {
@@ -21,10 +38,13 @@ export async function handleIncomingText(body) {
   const stamp = new Date().toLocaleString("en-US", { timeZone: config.timezone, hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
 
   if (isCarpet(to)) {
-    const note = `Text to Event Carpet line (${pretty(to)}) ${stamp}\nFrom ${pretty(from)}:\n${content}`;
+    // Pictures and files (layouts, drawings, PDFs) texted to the line ride along as email attachments.
+    const files = await fetchMedia(body, media);
+    const note = `Text to Event Carpet line (${pretty(to)}) ${stamp}\nFrom ${pretty(from)}:\n${content}${files.length ? `\n\n${files.length} attachment(s) on this email.` : ""}`;
+    const inbox = [config.carpet.email, config.carpet.cciEmail, config.carpet.gregEmail].filter(Boolean).join(", ");
     await Promise.all([
       config.julieCell ? sendText(config.julieCell, note, config.carpet.fromNumber) : null,
-      sendEmail(config.carpet.email, `Text from ${pretty(from)}`, note, "Max at USA Event Carpet"),
+      sendEmail(inbox, `${files.length ? "Files texted" : "Text"} from ${pretty(from)}`, note, "Max at USA Event Carpet", "cci", files),
     ]);
     console.log(`text to carpet line from ${from}: ${content.slice(0, 80)}`);
     return;

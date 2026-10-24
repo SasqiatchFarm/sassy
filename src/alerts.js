@@ -61,11 +61,11 @@ function mail(account) {
   return mailers[key] || null;
 }
 
-export async function sendEmail(to, subject, text, senderName = "Sassy at Sasquatch Farm", account = "farm") {
+export async function sendEmail(to, subject, text, senderName = "Sassy at Sasquatch Farm", account = "farm", attachments = []) {
   const m = mail(account);
   if (!m) return { ok: false, error: "email not set up" };
   try {
-    await m.transport.sendMail({ from: `"${senderName}" <${m.smtp.from || m.smtp.user}>`, to, subject, text });
+    await m.transport.sendMail({ from: `"${senderName}" <${m.smtp.from || m.smtp.user}>`, to, subject, text, attachments });
     return { ok: true };
   } catch (err) {
     console.error("email failed", err.message);
