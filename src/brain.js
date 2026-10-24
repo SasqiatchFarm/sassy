@@ -93,12 +93,23 @@ export class CallBrain {
           { signal: this.abort.signal },
         );
 
+        // If the first words take too long, fill the silence so the caller knows we're still here.
+        const started = Date.now();
+        const filler = setTimeout(() => {
+          if (!spoken && !this.abort.signal.aborted) {
+            console.log(`[${this.callSid}] slow reply: no words after ${Date.now() - started} ms, sent filler`);
+            onToken("One sec. ", false);
+          }
+        }, 4500);
+
         stream.on("text", (delta) => {
+          if (!spoken) { clearTimeout(filler); console.log(`[${this.callSid}] first word after ${Date.now() - started} ms`); }
           spoken += delta;
           onToken(delta, false);
         });
 
         const final = await stream.finalMessage();
+        clearTimeout(filler);
         stopReason = final.stop_reason;
         assistantBlocks = final.content;
         toolUses = final.content.filter((b) => b.type === "tool_use");
@@ -117,8 +128,8 @@ export class CallBrain {
       }
 
       if (spoken.trim()) {
-        this.transcript.push({ who: "sassy", text: spoken.trim() });
-        console.log(`[${this.callSid}] ${this.line.name} said: ${spoken.trim()}`);
+        this.transcript.push({ who: "sassy", name: this.speaker(), text: spoken.trim() });
+        console.log(`[${this.callSid}] ${this.speaker()} said: ${spoken.trim()}`);
       }
 
       // Keep only what matters for the record: spoken text and tool calls. Thinking blocks are
@@ -150,9 +161,11 @@ export class CallBrain {
       }
       this.messages.push({ role: "user", content: results });
 
-      // Transfer or hangup: finish speaking after this round, then hand off.
-      if (this.handoff) {
-        // Let Claude say its last line (the loop continues one more round for the goodbye).
+      // Transfer or hangup: if the last line was already said in this round, stop right here so it
+      // is never said twice and no more tools run. If nothing was said yet, one more round for it.
+      if (this.handoff && spoken.trim()) {
+        onToken("", true);
+        return { done: true };
       }
       // Loop continues: Claude now speaks based on the tool results.
     }
@@ -160,7 +173,9 @@ export class CallBrain {
     return { done: true };
   }
 
+  speaker() { return this.persona === "rafi" ? "Rafi" : this.line.name; }
+
   transcriptText() {
-    return this.transcript.map((t) => `${t.who === "sassy" ? this.line.name : "Caller"}: ${t.text}`).join("\n");
+    return this.transcript.map((t) => `${t.who === "sassy" ? (t.name || this.line.name) : "Caller"}: ${t.text}`).join("\n");
   }
 }
