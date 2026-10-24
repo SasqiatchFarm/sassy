@@ -4,9 +4,10 @@
 import { config } from "./config.js";
 import { localNow, withinHours } from "./hours.js";
 
-// Monday-Friday 9 to 5 Eastern. Transfers are only offered inside these hours.
-export const CARPET_HOURS = { 1: [9, 17], 2: [9, 17], 3: [9, 17], 4: [9, 17], 5: [9, 17] };
-export const carpetOpen = (date) => withinHours(CARPET_HOURS, config.carpet.timezone, date);
+// Every day 9 AM to 8 PM Eastern. Transfers are only offered inside these hours.
+// CARPET_TRANSFER_ANYTIME=1 on Render treats the office as always open (for testing).
+export const CARPET_HOURS = { 0: [9, 20], 1: [9, 20], 2: [9, 20], 3: [9, 20], 4: [9, 20], 5: [9, 20], 6: [9, 20] };
+export const carpetOpen = (date) => config.carpet.transferAnytime || withinHours(CARPET_HOURS, config.carpet.timezone, date);
 
 export function carpetGreeting(officeHours, transferFailed = false) {
   if (transferFailed) {
@@ -27,7 +28,7 @@ export function carpetGreeting(officeHours, transferFailed = false) {
 export function buildCarpetPrompt({ officeHours, from, transferFailed = false }) {
   const now = localNow(config.carpet.timezone);
   const rightNow = `# Right now
-It is ${now.label} Eastern. The office is ${officeHours ? "OPEN" : "CLOSED (hours are Monday through Friday, nine to five Eastern)"}.
+It is ${now.label} Eastern. The office is ${officeHours ? "OPEN" : "CLOSED (hours are nine a.m. to eight p.m. Eastern, seven days a week)"}.
 The caller's number is ${from || "unknown"}; use it as their callback number unless they give a different one.
 ${transferFailed ? "A transfer was just tried and nobody picked up. Do NOT offer another transfer on this call; take the message." : ""}`;
 
