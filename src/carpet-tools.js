@@ -89,6 +89,7 @@ export async function runCarpetTool(name, input, call) {
       if (call.messages_taken > 2) return say({ delivered: false, note: "Already passed along twice on this call. Don't send more; tell the caller it's all been noted." });
       const stamp = new Date().toLocaleString("en-US", { timeZone: config.carpet.timezone, hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
       const cci = input.business === "cci";
+      const staffOrder = /^STAFF ORDER/i.test(input.need || "");
       const lines = [
         `${input.rush ? "URGENT - " : ""}${cci ? "CCI Events" : "Event Carpet"} ${input.rush ? "call" : "message"} ${stamp}`,
         `${input.caller_name}${input.company ? ` (${input.company})` : ""} ${phone(input.caller_phone)}${input.email ? ` ${input.email}` : ""}`,
@@ -102,7 +103,9 @@ export async function runCarpetTool(name, input, call) {
       const text = lines.join("\n");
       const results = await Promise.all([
         config.julieCell ? sendText(config.julieCell, text, config.carpet.fromNumber) : { ok: false },
-        sendEmail(cci ? config.carpet.cciEmail : [config.carpet.email, config.carpet.gregEmail].filter(Boolean).join(", "), `${input.rush ? "URGENT: " : ""}Phone message from ${input.caller_name}`, text + (cci ? "\n\n- Rafi" : "\n\n- Max"), cci ? "Rafi at CCI Events" : "Max at USA Event Carpet", "cci"),
+        sendEmail(
+          staffOrder ? [config.carpet.email, config.carpet.cciEmail, config.carpet.gregEmail].filter(Boolean).join(", ") : cci ? config.carpet.cciEmail : [config.carpet.email, config.carpet.gregEmail].filter(Boolean).join(", "),
+          staffOrder ? `STAFF ORDER from ${input.caller_name}` : `${input.rush ? "URGENT: " : ""}Phone message from ${input.caller_name}`, text + (cci ? "\n\n- Rafi" : "\n\n- Max"), cci ? "Rafi at CCI Events" : "Max at USA Event Carpet", "cci"),
       ]);
       call.summary = `${input.caller_name}: ${input.need}`;
       return say({ delivered: results.some((r) => r.ok), texted: results[0].ok, emailed: results[1].ok });
