@@ -221,7 +221,7 @@ wss.on("connection", (ws, req) => {
       const stamp = new Date().toLocaleString("en-US", { timeZone: config.carpet.timezone, hour: "numeric", minute: "2-digit", month: "short", day: "numeric" });
       const who = brain.persona === "rafi" ? "Rafi" : "Max";
       sendEmail(
-        config.carpet.cciEmail,
+        [config.carpet.cciEmail, config.carpet.gregEmail].filter(Boolean).join(", "),
         `Call ${stamp} from ${brain.from || "unknown"}: ${summary.slice(0, 80)}`,
         `Caller: ${brain.from || "unknown"}\nLine: 225-238-6303\nAnswered by: ${who}\nSummary: ${summary}\n\n--- Conversation ---\n${transcript}`,
         `${who} at CCI Events`,

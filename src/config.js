@@ -71,6 +71,7 @@ export const config = {
     transferCells: list("CARPET_TRANSFER_CELLS"), // Julie, Greg
     transferAnytime: env("CARPET_TRANSFER_ANYTIME", "0") === "1", // testing switch: transfers outside 9-8
     email: env("CARPET_EMAIL", "info@usaeventcarpet.com"),
+    gregEmail: env("GREG_EMAIL", "g@usaeventcarpet.com"), // copied on carpet messages and every 225 call transcript
     cciEmail: env("CCI_EMAIL", "julie@ccievents.com"), // CCI Events shares the same phone number
     cciWebsite: env("CCI_WEBSITE", "https://www.ccievents.com"),
     website: env("CARPET_WEBSITE", "https://www.usaeventcarpet.com"),
