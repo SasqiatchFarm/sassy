@@ -238,6 +238,28 @@ wss.on("connection", (ws, req) => {
     }).catch(() => {});
   };
 
+  // Silence watchdog (225 line): spam dialers and dead air sit on the line saying nothing.
+  // 15 s of silence after the greeting -> "Still there?"; 30 s -> hang up. Any speech resets it.
+  let silence = null;
+  let nudged = false;
+  const armSilence = () => {
+    if (!carpet) return;
+    clearTimeout(silence);
+    silence = setTimeout(() => {
+      if (ws.readyState !== ws.OPEN) return;
+      if (!nudged) {
+        nudged = true;
+        console.log(`[${brain?.callSid}] silence: nudging`);
+        sendToken("Still there?", true);
+        armSilence();
+      } else {
+        console.log(`[${brain?.callSid}] silence: hanging up`);
+        if (brain) brain.summary = brain.summary || "No one spoke; hung up after 30 seconds of silence.";
+        ws.send(JSON.stringify({ type: "end", handoffData: JSON.stringify({ action: "hangup" }) }));
+      }
+    }, 15000);
+  };
+
   ws.on("message", async (raw) => {
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
@@ -250,16 +272,20 @@ wss.on("connection", (ws, req) => {
         // Lets a tool change the voice mid-call (Rafi -> Max) by sending a control message.
         brain.sendControl = (obj) => { if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj)); };
         console.log(`[${msg.callSid}] ${brain.line.name} on the line with ${msg.from}`);
+        armSilence();
         break;
       }
       case "prompt": {
         if (!brain || !msg.last) break; // only act on the finished utterance
         const text = (msg.voicePrompt || "").trim();
         if (!text) break;
+        clearTimeout(silence);
+        nudged = false;
         console.log(`[${brain.callSid}] caller: ${text}`);
         speaking = true;
         const result = await brain.respond(text, sendToken);
         speaking = false;
+        if (!brain.handoff) armSilence();
         if (brain.handoff && !result.interrupted) {
           // Give the voice a moment to finish the last sentence before hanging up / transferring.
           const lastWords = brain.transcript.at(-1)?.text || "";
@@ -295,6 +321,7 @@ wss.on("connection", (ws, req) => {
   });
 
   ws.on("close", () => {
+    clearTimeout(silence);
     if (brain) console.log(`[${brain.callSid}] call over`);
     finishCall();
   });
