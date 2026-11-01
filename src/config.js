@@ -34,6 +34,7 @@ export const config = {
   // Who gets what
   teamCells: list("TEAM_CELLS"), // Julie, Will, Scott  e.g. +1423..., +1423..., +1423...
   julieCell: env("JULIE_CELL"),
+  textForwardCells: list("TEXT_FORWARD_CELLS"), // extra cells that get a copy of every text to the farm numbers (e.g. Will)
   slackWebhook: env("SLACK_WEBHOOK_URL"), // incoming webhook for the park-issues channel
   farmEmail: env("FARM_EMAIL", "stay@sasquatchfarmtn.com"),
   digestEmails: list("DIGEST_EMAILS"), // Julie, Will, front desk

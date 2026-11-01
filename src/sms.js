@@ -54,6 +54,7 @@ export async function handleIncomingText(body) {
   await Promise.all([
     booking.inboxMessage({ callerName: `Text from ${pretty(from)}`, callerPhone: from, message: `(texted to ${pretty(to)}) ${content}` }),
     config.julieCell ? sendText(config.julieCell, note) : null,
+    ...config.textForwardCells.filter((c) => c !== config.julieCell).map((c) => sendText(c, note)),
   ]);
   console.log(`text to farm line ${to} from ${from}: ${content.slice(0, 80)}`);
 }
