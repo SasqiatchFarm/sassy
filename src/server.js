@@ -120,10 +120,13 @@ app.post("/voice/incoming", twilioOnly, (req, res) => {
 app.post("/voice/after-desk", twilioOnly, (req, res) => {
   const status = req.body.DialCallStatus;
   res.type("text/xml");
-  if (status === "completed" || status === "answered") {
+  const secs = Number(req.body.DialCallDuration || 0);
+  // A desk phone that "answers" and drops within a few seconds (bad handset/base) is not a real
+  // answer: send the caller to Sassy instead of hanging up on them.
+  if ((status === "completed" || status === "answered") && secs >= 8) {
     return res.send(new VoiceResponse().toString()); // the desk handled it
   }
-  console.log(`desk ${status}; Sassy answering ${req.body.CallSid}`);
+  console.log(`desk ${status} (${secs}s); Sassy answering ${req.body.CallSid}`);
   return res.send(sassyTwiml());
 });
 
